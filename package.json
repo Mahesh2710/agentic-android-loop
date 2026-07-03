@@ -1,0 +1,26 @@
+{
+  "dependencies": {
+    "glob": "^13.0.6",
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0"
+  },
+  "name": "agentic-android-loop",
+  "version": "1.0.8",
+  "bin": {
+    "agentic-android-loop": "bin/install.js"
+  },
+  "files": [
+    "bin",
+    ".agent",
+    ".agentrc",
+    "CLAUDE.md",
+    ".github/workflows/agent-evaluate.yml"
+  ],
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "Installs the Android Agentic Dev Loop (Gate/Analyse/Design/Implement/Evaluate) into an existing Android repo in one command."
+}

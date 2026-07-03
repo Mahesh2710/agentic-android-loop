@@ -1,0 +1,86 @@
+name: Agent Evaluate
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install agent dependencies
+        run: npm install
+
+      - name: Gradle cache
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Run full test suite
+        run: ./gradlew testDebugUnitTest
+
+      - name: Check APK size
+        run: |
+          ./gradlew assembleRelease
+          APK=$(find . -name "*.apk" -path "*/release/*" | head -1)
+          SIZE=$(du -m "$APK" | cut -f1)
+          PREV=0
+          if [ -f .agent/apk_size_baseline.txt ]; then
+            PREV=$(cat .agent/apk_size_baseline.txt)
+          fi
+          DELTA=$((SIZE - PREV))
+          BUDGET=$(node -e "const rc=require('./.agentrc');console.log(rc.evaluate.apkSizeBudgetMb)")
+          echo "APK size: ${SIZE}MB | Previous: ${PREV}MB | Delta: +${DELTA}MB | Budget: ${BUDGET}MB"
+          if [ "$DELTA" -gt "$BUDGET" ]; then
+            echo "❌ APK size over budget"
+            exit 1
+          fi
+          echo "$SIZE" > .agent/apk_size_baseline.txt
+          echo "✅ APK size within budget"
+
+      - name: Check localisation
+        run: |
+          node .agent/localisation-check.js
+          RESULT=$(node .agent/localisation-check.js)
+          PASSED=$(echo $RESULT | node -e "const d=require('/dev/stdin');process.exit(d.passed?0:1)")
+          if [ $? -ne 0 ]; then
+            echo "⚠ Missing translation keys — adding placeholders"
+            node -e "
+              const fs = require('fs');
+              const rc = JSON.parse(fs.readFileSync('.agentrc'));
+              const result = JSON.parse(\`$RESULT\`);
+              Object.entries(result.missingByLanguage).forEach(([lang, keys]) => {
+                const filePath = \`\${rc.project.resRoot}/values-\${lang}/strings.xml\`;
+                if (!fs.existsSync(filePath)) return;
+                let content = fs.readFileSync(filePath, 'utf-8');
+                const placeholder = keys.map(k =>
+                  \`    <string name=\"\${k}\">[NEEDS_TRANSLATION]</string>\`
+                ).join('\n');
+                content = content.replace('</resources>', \`\${placeholder}\n</resources>\`);
+                fs.writeFileSync(filePath, content);
+                console.log(\`Added \${keys.length} placeholders to \${filePath}\`);
+              });
+            "
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: '**/build/reports/tests/'

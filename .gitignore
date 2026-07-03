@@ -1,0 +1,9 @@
+.agent/
+# Agentic loop
+.agent/screenshots/
+.agent/logs/
+.agentrc.local
+node_modules/
+package-lock.json
+# Secrets
+.env

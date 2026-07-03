@@ -1,0 +1,80 @@
+{
+  "_comment": "Android Agentic Dev Tool — project configuration",
+  "_env": "Secrets are in .env (gitignored). Read it at Gate startup before any API call. Required: FIGMA_ACCESS_TOKEN (Figma personal access token — view-only access is sufficient for REST API SVG export).",
+
+  "project": {
+    "name": "agentic-dev-tool",
+    "packageName": "com.tvtoday.agenticdevtool",
+    "sourceRoot": "app/src/main/java",
+    "resRoot": "app/src/main/res",
+    "testRoot": "app/src/test/java",
+    "uiTestRoot": "app/src/androidTest/java",
+    "sharedComponentsPath": "app/src/main/java/com/tvtoday/agenticdevtool/shared/components"
+  },
+
+  "architecture": {
+    "pattern": "MVVM",
+    "di": "Hilt",
+    "async": "Coroutines",
+    "stateHolder": "StateFlow",
+    "ui": ["Compose", "XML"],
+    "networking": "Retrofit",
+    "imageLoading": "Coil",
+    "baseViewModelClass": null,
+    "baseRepositoryClass": null
+  },
+
+  "figma": {
+    "fileKey": null,
+    "frameNamingConvention": "Screen/{ScreenName}",
+    "componentPageName": "Components",
+    "resolutionPriority": ["ticket_url", "agentrc_default", "ask_developer"]
+  },
+
+  "jira": {
+    "baseUrl": "https://indiatodaygroup.atlassian.net",
+    "cloudId": "a05b23df-28b0-4189-98f7-27a0edb7300f",
+    "projectKey": "APPAT",
+    "statusInAIDev": "In Progress",
+    "statusInReview": "In Review",
+    "statusNeedsRefinement": "To Do"
+  },
+
+  "evaluate": {
+    "pixelMatchThreshold": 95,
+    "maxDesignAttempts": 5,
+    "maxLoopBackAttempts": 3,
+    "apkSizeBudgetMb": 0.5,
+    "minTestCoverage": 80,
+    "buildVariants": ["debug", "release", "prod"],
+    "defaultBuildVariant": "debug"
+  },
+
+  "ci": {
+    "provider": "github_actions",
+    "workflowFile": ".github/workflows/agent-evaluate.yml",
+    "defaultBranch": "develop",
+    "branchPrefix": "feature/"
+  },
+
+  "languages": ["en", "hi", "mr"],
+  "defaultLanguage": "en",
+
+  "dynamicUI": {
+    "enabled": true,
+    "componentRegistryPath": "app/src/main/java/com/tvtoday/agenticdevtool/shared/components/ComponentRegistry.kt",
+    "apiContractPath": "docs/api-contract.json",
+    "unknownComponentPlaceholder": "UnknownComponentPlaceholder"
+  },
+
+  "agent": {
+    "payloadDir": ".agent",
+    "screenshotDir": ".agent/screenshots/device",
+    "figmaExportDir": ".agent/screenshots/figma-exports",
+    "logsDir": ".agent/logs",
+    "pixelDiffScript": ".agent/pixeldiff.js",
+    "stringCheckerScript": ".agent/string-checker.js",
+    "prBuilderScript": ".agent/pr-builder.js",
+    "localisationScript": ".agent/localisation-check.js"
+  }
+}
