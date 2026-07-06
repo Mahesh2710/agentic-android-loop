@@ -40,11 +40,7 @@ This is a standalone command, completely outside the agentic loop. No Gate, no p
 
 1. **Read `.agentrc`** — get `project.packageName` and `evaluate.defaultBuildVariant`.
 2. **Gradle build** — assemble using `defaultBuildVariant`. No code edits — if the build fails, report the error and stop.
-3. **Resolve target** (same order as Evaluate step 2):
-   - Physical device connected → use it
-   - Running emulator → use it
-   - No running emulator → boot the first available AVD and wait for `sys.boot_completed`
-   - No AVD exists → stop and ask the developer to create one
+3. **Resolve target** — use standard device resolution order.
 4. **Install** — `adb install -r <apk_path>` from `app/build/outputs/apk/<variant>/`
 5. **Launch** — `adb shell am start -n <packageName>/<packageName>.MainActivity`
 6. **Report** — confirm the app is running: device name, variant installed, package launched. Nothing else.
@@ -146,6 +142,12 @@ Read these from `.agentrc` — do not hardcode them:
 
 Testing stack is fixed regardless of `.agentrc`: JUnit 5 + MockK + Turbine (unit), Espresso + Compose UI Test (UI). Folder structure beyond the roots above is not predefined — resolve it from the codebase scan in Analyse.
 
+**Device resolution order** (used in Quick-run, Reproduce, and Evaluate — always follow this sequence):
+1. Physical device connected (`adb devices` returns a device) → use it
+2. No physical device → use a running emulator if present
+3. No running emulator → boot first available AVD (`emulator -avd <name> -no-snapshot-load &`), wait for `adb shell getprop sys.boot_completed` = `1`
+4. No AVD exists → stop and ask the developer to create one
+
 ---
 
 ## Phase 1 — Gate (Gatekeeper)
@@ -165,7 +167,7 @@ Testing stack is fixed regardless of `.agentrc`: JUnit 5 + MockK + Turbine (unit
 
      | Type | Detection | Action |
      |---|---|---|
-     | Screenshot / design image (`.png`, `.jpg`, `.webp`) | File extension | Download to `.agent/screenshots/jira-attachments/<filename>`. Then classify the screenshot by reading the image: **Design mockup** (shows expected UI — clean layout, no device chrome, multiple states shown) → copy to `.agentrc.agent.figmaExportDir` and set `figma_source: "png"` automatically — used as pixel-diff reference in Design phase, no Figma needed. **Current state / bug evidence** (shows device frame, existing app UI, error state) → store in `attachments.screenshots` for context only — shown to developer in Gate summary, referenced in Reproduce phase for bug tickets. **Multiple screenshots** → classify each individually; if mixed, use design mockups for pixel-diff and current-state shots for context. |
+     | Screenshot / design image (`.png`, `.jpg`, `.webp`) | File extension | Download to `.agent/screenshots/jira-attachments/<filename>`. Classify and route — see **Screenshot Classification** below. |
      | Crash log / stacktrace (`.txt`, `.log`, or filename contains "crash", "anr", "trace") | Extension + name | Download to `.agent/logs/jira-attachments/<filename>`. Parse for exception type, file, line — pre-populate `crash_reproduction_steps` in the normaliser |
      | SVG export (`.svg`) | Extension | Download to `.agent/figma-exports/<filename>`. Auto-select Option 2 (SVG) in the Figma fallback flow — no prompt needed |
      | Design token JSON (`.json`, filename contains "tokens", "variables", or "figma") | Extension + name | Download to `.agent/figma-exports/<filename>`. Auto-select Option 3 (JSON) in the Figma fallback flow — no prompt needed |
@@ -173,6 +175,8 @@ Testing stack is fixed regardless of `.agentrc`: JUnit 5 + MockK + Turbine (unit
      | Other | — | List in `attachments.other[]` with filename and URL; do not download |
 
      Store all attachment metadata in `normalised.attachments` (see schema below).
+
+   **Screenshot Classification:** Read each image. **Design mockup** (clean layout, no device chrome, shows expected UI) → copy to `.agentrc.agent.figmaExportDir`, set `figma_source: "png"` — used as pixel-diff reference. **Current state / bug evidence** (device frame visible, existing app UI, error state) → store in `attachments.screenshots.current_state` for context only. **Multiple screenshots** → classify each individually; mix is allowed.
 
 2. **Classify the ticket** — reason over the title, description, AC, labels, and issue type:
    - Set `requires_design = true` if the ticket changes anything the user sees or interacts with (new screen, layout change, new UI state, copy change visible in the UI, etc.). Set `requires_design = false` for purely technical work.
@@ -190,28 +194,7 @@ Testing stack is fixed regardless of `.agentrc`: JUnit 5 + MockK + Turbine (unit
 
    | # | Check | How | Failure mode |
    |---|---|---|---|
-   | 1 | Figma link + MCP access | **Only runs if `requires_design == true`.** Resolve the Figma file key using `.agentrc.figma.resolutionPriority`. Attempt `get_metadata` via Figma MCP. **Succeeds** → proceed normally (`get_metadata` → node ID → `get_design_context`). **Fails with "no edit access"** → automatically attempt SVG export via Figma REST API (view-only access is sufficient) — see auto-SVG flow below. **Fails with network/config error** (invalid key, token misconfigured) → present manual fallback options to developer. | **HARD BLOCK** only if no file key resolves at all, or auto-SVG fails and developer picks Block. Skipped entirely for technical-only tickets. |
-
-   **Auto-SVG export via Figma REST API (runs automatically on "no edit access" — no developer action needed):**
-   1. Extract `fileKey` and `nodeId` from the Figma URL in the ticket (URL format: `figma.com/design/<fileKey>/...?node-id=<nodeId>`). If no `node-id` in URL, ask developer for the frame URL.
-   2. Call Figma REST API: `GET https://api.figma.com/v1/images/<fileKey>?ids=<nodeId>&format=svg` with header `X-Figma-Token: <FIGMA_PAT>`. Read `FIGMA_PAT` from environment variable `FIGMA_ACCESS_TOKEN`.
-   3. Download the SVG from the returned URL, save to `.agent/figma-exports/<ScreenName>.svg`.
-   4. Set `figma_source: "svg"` in the payload. Proceed — no developer prompt needed.
-   5. If REST API also fails (token missing or invalid) → fall through to manual fallback options below.
-
-   **Manual fallback options (only shown if both MCP and REST API fail):**
-   ```
-   Figma access unavailable (MCP requires edit access; REST API token missing or invalid).
-   Set FIGMA_ACCESS_TOKEN env var, or choose a manual option:
-     [1] PNG export  — Figma → right-click frame → Export → PNG 1x → .agent/screenshots/figma-exports/<ScreenName>.png
-     [2] SVG export  — Figma → right-click frame → Export → SVG → .agent/figma-exports/<ScreenName>.svg
-     [3] JSON export — Figma → Plugins → Tokens Studio → Export → .agent/figma-exports/<ScreenName>.json
-     [4] Block       — I will fix access and re-run
-   ```
-   - **Option 1 (PNG):** Pixel-diff works fully, design token extraction is partial — flag values with `INFERRED_FROM_PNG`.
-   - **Option 2 (SVG):** Parse SVG XML for colors, font sizes, spacing, layer names. Rasterise to PNG for pixel-diff. Store `figma_source: "svg"`.
-   - **Option 3 (JSON):** Full token extraction (Tokens Studio / W3C DTCG / Variables2JSON). Requires PNG or SVG for pixel-diff — prompt if neither exists. Store `figma_source: "json"`.
-   - **Option 4 (Block):** Transition ticket to `.agentrc.jira.statusNeedsRefinement`, stop.
+   | 1 | Figma link + MCP access | **Only runs if `requires_design == true`.** Resolve the Figma file key using `.agentrc.figma.resolutionPriority`. Attempt `get_metadata` via Figma MCP. Succeeds → proceed. Fails → follow **Figma Fallback Procedure** below. | **HARD BLOCK** only if no file key resolves or developer picks Block. Skipped for technical-only tickets. |
    | 2 | AC completeness | If acceptance criteria are missing/thin, ask the developer `[Y/n]` to proceed with inferred AC | **SOFT** — developer can override (`ac_override`) |
    | 3 | Dependencies | Check status of every blocking linked ticket via Rovo MCP | **HARD BLOCK** if any blocker is unresolved |
    | 4 | Scope size | If ticket content implies multiple screens, warn and ask `[Y/n]` | **SOFT** — developer can override (`scope_override`) |
@@ -239,9 +222,25 @@ Testing stack is fixed regardless of `.agentrc`: JUnit 5 + MockK + Turbine (unit
 
 11. **Seal the payload** — write `meta.status = "gate_passed"` and the full `normalised` object to `.agent/run_<TICKET_ID>.json`, then begin Phase 2 — Analyse.
 
+### Figma Fallback Procedure
+
+**Step 1 — Auto-SVG via REST API (on MCP "no edit access" — no developer action needed):**
+1. Extract `fileKey` and `nodeId` from the Figma URL (`figma.com/design/<fileKey>/...?node-id=<nodeId>`). If no `node-id`, ask developer for the frame URL.
+2. `GET https://api.figma.com/v1/images/<fileKey>?ids=<nodeId>&format=svg` with `X-Figma-Token: $FIGMA_ACCESS_TOKEN`. Download SVG to `.agent/figma-exports/<ScreenName>.svg`. Set `figma_source: "svg"`. Proceed.
+3. If REST API fails (token missing/invalid) → show manual options below.
+
+**Step 2 — Manual options (only if both MCP and REST API fail):**
+```
+[1] PNG   — right-click frame → Export → PNG 1x → .agent/screenshots/figma-exports/<ScreenName>.png
+[2] SVG   — right-click frame → Export → SVG  → .agent/figma-exports/<ScreenName>.svg
+[3] JSON  — Plugins → Tokens Studio → Export  → .agent/figma-exports/<ScreenName>.json
+[4] Block — I will fix access and re-run
+```
+- **PNG:** Pixel-diff works; tokens partial (`INFERRED_FROM_PNG`). **SVG:** Parse XML for colors/spacing; rasterise for pixel-diff; `figma_source: "svg"`. **JSON:** Full tokens; needs PNG/SVG for pixel-diff. **Block:** Transition to `statusNeedsRefinement`, stop.
+
 ### Hard blocks (no override)
 - No Figma file key resolvable (design tickets only)
-- Figma MCP unreachable AND no fallback asset present (PNG/SVG/JSON) AND developer picks Block option (design tickets only)
+- Figma MCP + REST API both failed AND developer picks Block (design tickets only)
 - Unresolved blocking tickets
 
 ### Soft warnings (developer can override)
@@ -287,7 +286,7 @@ Testing stack is fixed regardless of `.agentrc`: JUnit 5 + MockK + Turbine (unit
 ```
 
 ### Flag types
-`MISSING_FIGMA` · `INFERRED_AC` · `INFERRED_EDGE_CASE` · `MULTI_SCREEN` · `VAGUE_REQUIREMENT` · `MISSING_API_DETAIL` · `HARDCODED_TEXT_RISK` · `UI_TYPE_UNCLEAR` · `LOCALISATION_RISK` · `TECHNICAL_ONLY_NO_DESIGN` · `CRASH_ANR_TICKET` (informational — raised whenever `is_crash_anr` is `true`, signals that Reproduce phase will run before Implement) · `CRASH_NOT_REPRODUCED` (raised if the crash could not be reproduced on device during Reproduce phase — Implement still runs but fix cannot be verified)
+`MISSING_FIGMA` · `INFERRED_AC` · `INFERRED_EDGE_CASE` · `MULTI_SCREEN` · `VAGUE_REQUIREMENT` · `MISSING_API_DETAIL` · `HARDCODED_TEXT_RISK` · `UI_TYPE_UNCLEAR` · `LOCALISATION_RISK` · `TECHNICAL_ONLY_NO_DESIGN` · `CRASH_ANR_TICKET` (is_crash_anr = true; Reproduce runs before Implement) · `CRASH_NOT_REPRODUCED` (crash not reproduced on device; fix unverified)
 
 Carry every flag forward in the payload — Evaluate and the PR body (via `pr-builder.js`) surface them again.
 
@@ -489,15 +488,12 @@ Before building anything, ask the developer:
 ```
 Which build type should this run use? [debug / release / prod] (default: .agentrc.evaluate.defaultBuildVariant)
 ```
-Offer exactly the variants listed in `.agentrc.evaluate.buildVariants`. If the developer just hits enter, use `.agentrc.evaluate.defaultBuildVariant`. Record the answer as `meta.build_variant` in the payload — every Gradle command in this phase substitutes it in (`assemble<Capitalized variant>`, `test<Capitalized variant>UnitTest`, etc.) instead of a hardcoded type. This selection only affects local checks in this phase; it does not change Design's emulator rendering (always debug, for fast iteration) and does not override CI's own build matrix (see below).
+Offer exactly the variants listed in `.agentrc.evaluate.buildVariants`. If the developer hits enter, use `defaultBuildVariant`. Record as `meta.build_variant` — substituted into all local Gradle commands only; Design always uses debug and CI runs its own matrix regardless.
 
 ### Local checks (run yourself, on the developer's machine, before pushing)
 
 1. Gradle build — `./gradlew assemble<BuildVariant>` (e.g. `assembleDebug`, `assembleRelease`, `assembleProd` — capitalized per the variant chosen in Step 0) — must pass before anything else runs
-2. Install on device/emulator — `adb install -r <apk_path>` — install the freshly built APK. Locate it under `app/build/outputs/apk/<variant>/`. Device resolution order:
-   - **Physical device connected** (`adb devices` returns a device) → install directly.
-   - **No physical device** → check for a running emulator (`adb devices` returns an emulator). If one is running, install on it.
-   - **No running emulator** → boot the first available AVD (`emulator -avd <name> -no-snapshot-load &`, then wait for `adb shell getprop sys.boot_completed` to return `1`). List AVDs via `emulator -list-avds`. If no AVD exists, hard-stop and ask the developer to create one — do not skip UI tests silently.
+2. Install on device/emulator — `adb install -r <apk_path>` from `app/build/outputs/apk/<variant>/`. Use standard device resolution order.
 3. Unit tests — `./gradlew test<BuildVariant>UnitTest` — new tests + regression on existing tests for every modified file
 4. Lint + ktlint — all touched files
 5. String checker — `node .agent/string-checker.js <sourceRoot>` — must report `passed: true`
