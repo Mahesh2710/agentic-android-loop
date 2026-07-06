@@ -1,0 +1,28 @@
+{
+  "verbose": false,
+  "permissions": {
+    "allow": [
+      "Bash(claude mcp *)",
+      "Bash(git mv *)",
+      "Bash(mv install.js bin/install.js)",
+      "Bash(chmod +x \"/Users/pushpeetsingh/Documents/Demo/Agents/bin/install.js\")",
+      "Bash(npm whoami *)",
+      "Bash(npm view *)",
+      "Bash(npm pack *)",
+      "Bash(npm publish *)",
+      "Bash(rm -rf /private/tmp/claude-501/-Users-pushpeetsingh-Documents-Demo-Agents/cd593917-1083-4320-9a26-6b1f75c67399/scratchpad/fake-android-no-pkg)",
+      "Bash(mkdir -p /private/tmp/claude-501/-Users-pushpeetsingh-Documents-Demo-Agents/cd593917-1083-4320-9a26-6b1f75c67399/scratchpad/fake-android-no-pkg/app/src/main/java)",
+      "Bash(node /Users/pushpeetsingh/Documents/Demo/Agents/bin/install.js /private/tmp/claude-501/-Users-pushpeetsingh-Documents-Demo-Agents/cd593917-1083-4320-9a26-6b1f75c67399/scratchpad/fake-android-no-pkg)",
+      "Bash(python3 -c \"import markdown\")",
+      "Bash(pip3 show *)",
+      "Bash(brew --version)",
+      "Bash(brew install *)",
+      "Bash(ls /Applications | grep -i -E \"chrome|chromium\" ; which xelatex pdflatex weasyprint prince wkhtmltopdf 2>&1)",
+      "Read(//Applications/**)",
+      "Bash(pandoc PROJECT_REPORT.md --standalone --embed-resources --css=.report-style.css --metadata 'title=Android Agentic Developer Loop — Project Report' -o .report.html)",
+      "Bash(echo \"exit: $?\")",
+      "Bash",
+      "Bash(adb *)"
+    ]
+  }
+}
