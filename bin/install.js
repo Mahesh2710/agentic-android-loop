@@ -171,12 +171,22 @@ function installWorkflow(targetRoot) {
 
 function installClaudeMdSection(targetRoot) {
   const srcClaudeMd = fs.readFileSync(path.join(SOURCE_ROOT, 'CLAUDE.md'), 'utf-8');
-  const section = `${MARKER_START}\n\n${srcClaudeMd.trim()}\n\n${MARKER_END}`;
+
+  // Install full instructions into .claude/CLAUDE.md — Claude Code reads this
+  // automatically without bloating the project's main CLAUDE.md.
+  const claudeDir = path.join(targetRoot, '.claude');
+  const claudeDirMd = path.join(claudeDir, 'CLAUDE.md');
+  fs.mkdirSync(claudeDir, { recursive: true });
+  fs.writeFileSync(claudeDirMd, srcClaudeMd.trim() + '\n');
+  ok('Installed agentic loop instructions → .claude/CLAUDE.md');
+
+  // Add a single pointer line in the main CLAUDE.md so it's visible.
+  const pointer = `${MARKER_START}\n# Android Agentic Developer Loop\nInstructions are in \`.claude/CLAUDE.md\` (auto-loaded by Claude Code).\n${MARKER_END}`;
   const destPath = path.join(targetRoot, 'CLAUDE.md');
 
   if (!fs.existsSync(destPath)) {
-    fs.writeFileSync(destPath, section + '\n');
-    ok('Created CLAUDE.md with the agentic loop section');
+    fs.writeFileSync(destPath, pointer + '\n');
+    ok('Created CLAUDE.md with agentic loop pointer');
     return;
   }
 
@@ -186,11 +196,11 @@ function installClaudeMdSection(targetRoot) {
 
   let updated;
   if (startIdx !== -1 && endIdx !== -1) {
-    updated = existing.slice(0, startIdx) + section + existing.slice(endIdx + MARKER_END.length);
-    ok('CLAUDE.md already had an agentic loop section — replaced it in place');
+    updated = existing.slice(0, startIdx) + pointer + existing.slice(endIdx + MARKER_END.length);
+    ok('CLAUDE.md pointer already existed — updated in place');
   } else {
-    updated = existing.trim() + '\n\n---\n\n' + section + '\n';
-    ok('Appended agentic loop section to existing CLAUDE.md');
+    updated = existing.trim() + '\n\n---\n\n' + pointer + '\n';
+    ok('Appended agentic loop pointer to existing CLAUDE.md');
   }
   fs.writeFileSync(destPath, updated);
 }
