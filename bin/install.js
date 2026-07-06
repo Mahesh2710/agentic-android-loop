@@ -276,15 +276,100 @@ function ensureGitignoreEntry(targetRoot) {
   ok('Added node_modules/ to existing .gitignore');
 }
 
+function uninstall(targetRoot) {
+  console.log(`Removing Android Agentic Dev Loop from ${targetRoot}\n`);
+
+  // Remove .claude/CLAUDE.md
+  const claudeMd = path.join(targetRoot, '.claude', 'CLAUDE.md');
+  if (fs.existsSync(claudeMd)) {
+    fs.rmSync(claudeMd);
+    ok('Removed .claude/CLAUDE.md');
+    // Remove .claude/ dir if now empty
+    const claudeDir = path.join(targetRoot, '.claude');
+    if (fs.readdirSync(claudeDir).length === 0) {
+      fs.rmdirSync(claudeDir);
+      ok('Removed empty .claude/ directory');
+    }
+  } else {
+    warn('.claude/CLAUDE.md not found — skipped');
+  }
+
+  // Remove agentic loop pointer from main CLAUDE.md
+  const mainClaude = path.join(targetRoot, 'CLAUDE.md');
+  if (fs.existsSync(mainClaude)) {
+    let content = fs.readFileSync(mainClaude, 'utf-8');
+    const startIdx = content.indexOf(MARKER_START);
+    const endIdx = content.indexOf(MARKER_END);
+    if (startIdx !== -1 && endIdx !== -1) {
+      content = (content.slice(0, startIdx) + content.slice(endIdx + MARKER_END.length)).replace(/\n{3,}/g, '\n\n').trim();
+      if (content.length === 0) {
+        fs.rmSync(mainClaude);
+        ok('Removed CLAUDE.md (was only the agentic loop pointer)');
+      } else {
+        fs.writeFileSync(mainClaude, content + '\n');
+        ok('Removed agentic loop pointer from CLAUDE.md');
+      }
+    } else {
+      warn('No agentic loop marker found in CLAUDE.md — skipped');
+    }
+  }
+
+  // Remove .agentrc
+  const agentrc = path.join(targetRoot, '.agentrc');
+  if (fs.existsSync(agentrc)) {
+    fs.rmSync(agentrc);
+    ok('Removed .agentrc');
+  }
+
+  // Remove .agent/ directory
+  const agentDir = path.join(targetRoot, '.agent');
+  if (fs.existsSync(agentDir)) {
+    fs.rmSync(agentDir, { recursive: true, force: true });
+    ok('Removed .agent/');
+  }
+
+  // Remove CI workflow
+  const workflow = path.join(targetRoot, '.github', 'workflows', 'agent-evaluate.yml');
+  if (fs.existsSync(workflow)) {
+    fs.rmSync(workflow);
+    ok('Removed .github/workflows/agent-evaluate.yml');
+  }
+
+  // Remove deps from package.json
+  const pkgPath = path.join(targetRoot, 'package.json');
+  if (fs.existsSync(pkgPath)) {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+    const toRemove = ['pixelmatch', 'pngjs', 'glob'];
+    let changed = false;
+    toRemove.forEach(dep => {
+      if (pkg.dependencies && pkg.dependencies[dep]) { delete pkg.dependencies[dep]; changed = true; }
+      if (pkg.devDependencies && pkg.devDependencies[dep]) { delete pkg.devDependencies[dep]; changed = true; }
+    });
+    if (changed) {
+      fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+      ok('Removed agentic loop dependencies from package.json — run npm install to sync node_modules');
+    }
+  }
+
+  console.log('\nDone. Agentic loop removed from this project.');
+}
+
 function main() {
   // No argument → install into the directory the command was run from.
   // This is what makes `npx agentic-android-loop` work with zero setup:
   // the developer just runs it from inside their own repo root.
-  const target = process.argv[2] || process.cwd();
+  const args = process.argv.slice(2);
+  const isUninstall = args.includes('--uninstall') || args.includes('-u');
+  const target = args.find(a => !a.startsWith('-')) || process.cwd();
 
   const targetRoot = path.resolve(target);
   if (!fs.existsSync(targetRoot) || !fs.statSync(targetRoot).isDirectory()) {
     fail(`Target is not a directory: ${targetRoot}`);
+  }
+
+  if (isUninstall) {
+    uninstall(targetRoot);
+    return;
   }
 
   console.log(`Installing Android Agentic Dev Loop into ${targetRoot}\n`);
