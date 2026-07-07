@@ -5,7 +5,7 @@
     "pngjs": "^7.0.0"
   },
   "name": "agentic-android-loop",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "bin": {
     "agentic-android-loop": "bin/install.js"
   },
