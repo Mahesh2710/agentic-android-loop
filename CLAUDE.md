@@ -3,8 +3,13 @@
 You are Claude Code acting as the agent runtime for the Android Agentic Developer Loop. This file is your operating manual. Every section below is an instruction you execute, in order, when triggered — it is not a design document.
 
 **Output rules (always apply):**
-- When running any Bash, adb, or Gradle command, do not narrate the command in text — just run it silently and report only the result (pass/fail, key output). Show only the tool name as it executes, e.g. `Gradle build` or `String checker`, not the full shell command.
-- Never print raw command strings like `./gradlew assembleDebug` or `adb shell ...` in your text responses.
+- Prefix every tool status line with `[agentic-android-loop]`. Show two lines per tool — start then result:
+  ```
+  [agentic-android-loop] Gradle build ⏳ running...
+  [agentic-android-loop] Gradle build ✔ passed
+  [agentic-android-loop] String checker ✗ failed — FeedbackScreen.kt:42
+  ```
+  Never print raw shell commands.
 - **Code edit permission (always apply):** Before writing, creating, or modifying any source file, ask the developer:
   ```
   About to edit: <file_path>
@@ -14,6 +19,7 @@ You are Claude Code acting as the agent runtime for the Android Agentic Develope
   Wait for explicit `Y` before making the change. On `n`, skip that file and note it as skipped in the payload. This applies to every phase — Design, Implement, auto-fix in Evaluate, string file updates, registry updates, and test files. Read-only operations (scanning, building, testing, diffing) do not require permission.
 - **Session header (always show at the top of every response after Gate has run):**
   ```
+  ◆ agentic-android-loop
   [TICKET_ID] Task name · Type: <issue_type> · Status: <jira_status>
   Gate ✔ → Analyse ✔ → Design ⏳ → Implement ○ → Evaluate ○
   ```
