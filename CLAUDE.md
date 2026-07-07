@@ -79,17 +79,21 @@ No tests, no lint, no pixel diff, no permission prompts (no code is edited).
 7. **Loop** — if a new crash appears after the fix, repeat from step 2. Stop after 3 fix attempts and escalate to the developer with a full crash report.
 8. **Report** — crash fixed: exception, file, fix summary. If a ticket is active, add a Jira comment via Rovo MCP describing the crash and fix.
 
-**Crash monitoring during Evaluate** — after install (step 2 of local checks), capture logcat in the background while UI tests run. If a crash is detected mid-test, pause the test run, run the crash fix flow above, then resume tests from the beginning.
+**Crash monitoring during Evaluate** — capture logcat in the background while UI tests run. If a crash is detected mid-test, pause, run the crash fix flow above, then resume tests from the beginning.
 
 ---
 
 ## Trigger
 
-```
-Run the agentic loop for ticket APP-101
-```
+**Explicit trigger:** any phrasing that names a ticket ID → Gate runs with that ticket. Never skip Gate.
 
-This starts Phase 1 — Gate. Never skip to a later phase directly, even if the developer's request implies one (e.g. "just implement APP-101") — Gate always runs first, every time, for every ticket.
+**Auto-detect (no ticket ID):** if the developer describes a bug, crash, ANR, or feature without a ticket ID, detect and confirm:
+```
+Detected: [Bug | Feature] — "<inferred summary>"
+Run the agentic loop? [Y/n]
+```
+On `Y`: run Gate in **ticketless mode** — synthetic ID `LOCAL-001` (increment per run), developer's message as description, all Jira steps skipped. Header: `[LOCAL] <summary> · Type: Bug/Feature · Status: Local`.
+On `n`: stop.
 
 ---
 
@@ -152,13 +156,13 @@ Testing stack is fixed regardless of `.agentrc`: JUnit 5 + MockK + Turbine (unit
 
 ## Phase 1 — Gate (Gatekeeper)
 
-**Trigger:** developer names a ticket ID.
+**Trigger:** developer names a ticket ID, or auto-detect confirmed (ticketless mode).
 
-**Goal:** decide whether the ticket is safe to automate, with the developer's eyes on anything ambiguous, before any code is touched.
+**Goal:** decide whether the ticket is safe to automate before any code is touched.
 
 ### Steps — execute in this exact order
 
-1. **Fetch the ticket via Rovo MCP** — full description, AC, comments, linked/blocking issues. Resolve the ticket as follows:
+1. **Fetch the ticket via Rovo MCP** — full description, AC, comments, linked/blocking issues. **Ticketless mode: skip — use developer's message as description; set `meta.ticket_name` = inferred summary, `meta.issue_type` = Bug/Feature, `meta.jira_status` = Local.** Jira mode — resolve the ticket as follows:
    - If a full ticket ID is given (e.g. `SCRUM-8`), extract the project key directly from the prefix (`SCRUM`) — do not read `agentrc.jira.projectKey` for this.
    - If only a bare number is given (e.g. `8`), fall back to `.agentrc.jira.projectKey` to construct the full ID.
    - Also update `.agentrc.jira.projectKey` in-place to match the extracted key, so subsequent agent operations stay in sync with the active ticket's project.
@@ -196,10 +200,10 @@ Testing stack is fixed regardless of `.agentrc`: JUnit 5 + MockK + Turbine (unit
    |---|---|---|---|
    | 1 | Figma link + MCP access | **Only runs if `requires_design == true`.** Resolve the Figma file key using `.agentrc.figma.resolutionPriority`. Attempt `get_metadata` via Figma MCP. Succeeds → proceed. Fails → follow **Figma Fallback Procedure** below. | **HARD BLOCK** only if no file key resolves or developer picks Block. Skipped for technical-only tickets. |
    | 2 | AC completeness | If acceptance criteria are missing/thin, ask the developer `[Y/n]` to proceed with inferred AC | **SOFT** — developer can override (`ac_override`) |
-   | 3 | Dependencies | Check status of every blocking linked ticket via Rovo MCP | **HARD BLOCK** if any blocker is unresolved |
+   | 3 | Dependencies | Check status of every blocking linked ticket via Rovo MCP. **Skipped in ticketless mode.** | **HARD BLOCK** if any blocker is unresolved |
    | 4 | Scope size | If ticket content implies multiple screens, warn and ask `[Y/n]` | **SOFT** — developer can override (`scope_override`) |
 
-   On a hard block: stop, transition the ticket to `.agentrc.jira.statusNeedsRefinement` via Rovo MCP, explain exactly which check failed, and do not proceed.
+   On a hard block: stop, explain which check failed. In Jira mode: transition to `statusNeedsRefinement` via Rovo MCP.
 
 5. **Auto-detect the target screen** — **only if `requires_design == true`.** Reason over ticket content + Figma frame names (Figma MCP `get_file`), matching against `.agentrc.figma.frameNamingConvention` (`Screen/{ScreenName}`). For technical-only tickets, skip this step and set `screen_name` to a short description of the affected component/module instead (e.g. `"AuthRepository"`), derived from `affected_files`.
 
@@ -207,18 +211,18 @@ Testing stack is fixed regardless of `.agentrc`: JUnit 5 + MockK + Turbine (unit
    ```
    Detected: LoginScreen — correct? [Y/n]
    ```
-   On `n`, ask the developer to name the screen instead of guessing again. Technical-only tickets skip this confirmation — there's no screen to detect.
+   On `n`, ask the developer to name the screen. Technical-only and ticketless tickets skip this step.
 
-7. **Run the Ticket Normaliser** — your own LLM reasoning step, not a script — converting the free-form ticket into the schema below. Carry the `requires_design` decision from step 2 into the schema rather than re-deriving it.
+7. **Run the Ticket Normaliser** — LLM reasoning step: convert the ticket (or developer's message in ticketless mode) into the schema below. Carry `requires_design` from step 2.
 
-8. **Show the developer a summary**: feature summary, every flag raised, confidence score.
+8. **Show the developer a summary**: feature summary, flags raised, confidence score.
 
 9. **Confirm before any state change:**
    ```
    Proceed? [Y/n]
    ```
 
-10. **Transition the Jira ticket** to `.agentrc.jira.statusInAIDev` via Rovo MCP.
+10. **Transition the Jira ticket** to `.agentrc.jira.statusInAIDev` via Rovo MCP. **Skipped in ticketless mode.**
 
 11. **Seal the payload** — write `meta.status = "gate_passed"` and the full `normalised` object to `.agent/run_<TICKET_ID>.json`, then begin Phase 2 — Analyse.
 
@@ -519,7 +523,7 @@ Offer exactly the variants listed in `.agentrc.evaluate.buildVariants`. If the d
 
 11. Run `node .agent/pr-builder.js <run_id>` — it reads the payload and returns `{ title, body, branch, base }`.
 12. Create the PR with `gh pr create` using exactly that title, body, head branch, and base branch.
-13. Update Jira via Rovo MCP: transition to `.agentrc.jira.statusInReview` and comment the PR link.
+13. Update Jira via Rovo MCP: transition to `.agentrc.jira.statusInReview` and comment the PR link. **Skipped in ticketless mode.**
 14. Set `meta.status = "completed"`.
 
 The PR body (built by `pr-builder.js`) already includes: feature summary, Jira link, screen/UI type, files created/modified, pixel match scores, test counts, every normaliser flag, AC/scope override notices, and a localisation notice if placeholders were added. Do not duplicate these manually — just create the PR with what the script gives you.
