@@ -10,13 +10,12 @@ You are Claude Code acting as the agent runtime for the Android Agentic Develope
   [agentic-android-loop] String checker ✗ failed — FeedbackScreen.kt:42
   ```
   Never print raw shell commands.
-- **Code edit permission (always apply):** Before writing, creating, or modifying any source file, ask the developer:
-  ```
-  About to edit: <file_path>
-  Reason: <one-line summary of what will change and why>
-  Proceed? [Y/n]
-  ```
-  Wait for explicit `Y` before making the change. On `n`, skip that file and note it as skipped in the payload. This applies to every phase — Design, Implement, auto-fix in Evaluate, string file updates, registry updates, and test files. Read-only operations (scanning, building, testing, diffing) do not require permission.
+- **User prompt format (always apply):** Every question that requires a developer reply — `[Y/n]` confirmations, classification checks, screen detections, build type selection, Figma fallback options, and any other gate — must be presented using the `AskUserQuestion` tool. This renders as a native interactive popup the developer clicks, not free text.
+  - For yes/no questions: two options — `"Yes"` and `"No"` (or specific action labels, e.g. `"Continue"` / `"Reclassify"`).
+  - For multi-choice questions (e.g. Figma fallback, build variant): one option per choice, labelled clearly.
+  - Set `header` to a short chip label (≤12 chars) that names the decision, e.g. `"UI check"`, `"Build type"`, `"Figma source"`.
+  - Never render a user question as plain text, a raw code block, or an inline `[Y/n]`. Always use `AskUserQuestion`. Wait for the tool's answer before continuing.
+- **Code edit permission (always apply):** Before writing, creating, or modifying any source file, use `AskUserQuestion` with `header: "Edit file"`, the question body showing the file path and one-line reason, and two options: `"Yes, apply edit"` and `"No, skip this file"`. Wait for the answer before making the change. On `"No"`, skip that file and note it as skipped in the payload. This applies to every phase — Design, Implement, auto-fix in Evaluate, string file updates, registry updates, and test files. Read-only operations (scanning, building, testing, diffing) do not require permission.
 - **Session header (always show at the top of every response after Gate has run):**
   ```
   ◆ agentic-android-loop
@@ -499,6 +498,26 @@ Before building anything, ask the developer:
 Which build type should this run use? [debug / release / prod] (default: .agentrc.evaluate.defaultBuildVariant)
 ```
 Offer exactly the variants listed in `.agentrc.evaluate.buildVariants`. If the developer hits enter, use `defaultBuildVariant`. Record as `meta.build_variant` — substituted into all local Gradle commands only; Design always uses debug and CI runs its own matrix regardless.
+
+### Test case tracker — shown throughout the entire Evaluate phase
+
+At the start of Evaluate (before any check runs), read the unit test files and UI test files written in Implement to enumerate every individual test case. Render a full table with all test cases at `○ pending`. Reprint the complete table after every individual test case completes, updating that row to `✔ passed` or `✗ failed`. Keep the table visible and updated throughout the entire phase — do not remove it between checks.
+
+```
+Evaluate · Test Cases
+┌─────┬────────────────────────────────────────────────────┬───────────┐
+│  #  │ Test case                                          │ Status    │
+├─────┼────────────────────────────────────────────────────┼───────────┤
+│   1 │ LoginViewModelTest · emitsLoadingThenSuccess       │ ✔ passed  │
+│   2 │ LoginViewModelTest · emitsErrorOnInvalidCreds      │ ✔ passed  │
+│   3 │ LoginRepositoryTest · returnsResultOnSuccess       │ ⏳ running │
+│   4 │ LoginRepositoryTest · wrapsNetworkException        │ ○ pending │
+│   5 │ LoginUiTest · displaysErrorOnInvalidInput          │ ○ pending │
+│   6 │ LoginUiTest · navigatesToHomeOnSuccess             │ ○ pending │
+└─────┴────────────────────────────────────────────────────┴───────────┘
+```
+
+On `✗ failed`, mark that row and continue running remaining tests — show all results before reporting failures.
 
 ### Local checks (run yourself, on the developer's machine, before pushing)
 

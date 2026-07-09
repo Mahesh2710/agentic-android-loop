@@ -22,7 +22,9 @@
       "Bash(pandoc PROJECT_REPORT.md --standalone --embed-resources --css=.report-style.css --metadata 'title=Android Agentic Developer Loop — Project Report' -o .report.html)",
       "Bash(echo \"exit: $?\")",
       "Bash",
-      "Bash(adb *)"
+      "Bash(adb *)",
+      "Edit",
+      "Write"
     ]
   }
 }

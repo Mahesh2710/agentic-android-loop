@@ -1,15 +1,15 @@
 {
-  "_comment": "Android Agentic Dev Tool — project configuration",
+  "_comment": "Android Agentic Dev Tool — project configuration. Fill in project/jira/figma values for your repo.",
   "_env": "Secrets are in .env (gitignored). Read it at Gate startup before any API call. Required: FIGMA_ACCESS_TOKEN (Figma personal access token — view-only access is sufficient for REST API SVG export).",
 
   "project": {
-    "name": "agentic-dev-tool",
-    "packageName": "com.tvtoday.agenticdevtool",
+    "name": "your-app",
+    "packageName": "com.example.app",
     "sourceRoot": "app/src/main/java",
     "resRoot": "app/src/main/res",
     "testRoot": "app/src/test/java",
     "uiTestRoot": "app/src/androidTest/java",
-    "sharedComponentsPath": "app/src/main/java/com/tvtoday/agenticdevtool/shared/components"
+    "sharedComponentsPath": "app/src/main/java/com/example/app/shared/components"
   },
 
   "architecture": {
@@ -45,7 +45,7 @@
     "maxDesignAttempts": 5,
     "maxLoopBackAttempts": 3,
     "apkSizeBudgetMb": 5,
-    "buildVariants": ["debug", "release", "prod"],
+    "buildVariants": ["debug", "release"],
     "defaultBuildVariant": "debug"
   },
 
@@ -56,12 +56,12 @@
     "branchPrefix": "feature/"
   },
 
-  "languages": ["en", "hi", "mr"],
+  "languages": ["en"],
   "defaultLanguage": "en",
 
   "dynamicUI": {
-    "enabled": true,
-    "componentRegistryPath": "app/src/main/java/com/tvtoday/agenticdevtool/shared/components/ComponentRegistry.kt",
+    "enabled": false,
+    "componentRegistryPath": "app/src/main/java/com/example/app/shared/components/ComponentRegistry.kt",
     "apiContractPath": "docs/api-contract.json",
     "unknownComponentPlaceholder": "UnknownComponentPlaceholder"
   },

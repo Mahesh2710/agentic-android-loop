@@ -5,19 +5,22 @@
     "pngjs": "^7.0.0"
   },
   "name": "agentic-android-loop",
-  "version": "1.0.15",
+  "version": "1.0.29",
   "bin": {
     "agentic-android-loop": "bin/install.js"
   },
   "files": [
     "bin",
-    ".agent",
-    ".agentrc",
+    ".agent/pixeldiff.js",
+    ".agent/string-checker.js",
+    ".agent/localisation-check.js",
+    ".agent/pr-builder.js",
+    ".agentrc.template",
     "CLAUDE.md",
     ".github/workflows/agent-evaluate.yml"
   ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test tests/"
   },
   "keywords": [],
   "author": "",

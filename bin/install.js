@@ -130,7 +130,8 @@ function autoDetectProjectValues(targetRoot, config) {
 }
 
 function installAgentrc(targetRoot) {
-  const srcPath = path.join(SOURCE_ROOT, '.agentrc');
+  const templatePath = path.join(SOURCE_ROOT, '.agentrc.template');
+  const srcPath = fs.existsSync(templatePath) ? templatePath : path.join(SOURCE_ROOT, '.agentrc');
   const destPath = path.join(targetRoot, '.agentrc');
   const srcConfig = JSON.parse(fs.readFileSync(srcPath, 'utf-8'));
 

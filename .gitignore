@@ -1,9 +1,11 @@
-.agent/
-# Agentic loop
-.agent/screenshots/
-.agent/logs/
-.agentrc.local
+# Agentic loop — runtime artifacts only (the .agent/*.js scripts ARE tracked)
+# .agent/screenshots/
+# .agent/logs/
+# .agent/run_*.json
+# .agent/apk_size_baseline.txt
+# .agentrc.local
 node_modules/
-package-lock.json
+# package-lock.json
+# .DS_Store
 # Secrets
 .env
